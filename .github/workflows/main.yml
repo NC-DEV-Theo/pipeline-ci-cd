@@ -1,0 +1,43 @@
+env:
+  clasp-credentials: secrets.CLASPRC_JSON
+  repo-access-token: secrets.REPO_ACCESS_TOKEN
+
+on:
+  push:
+    branches:
+    - dev
+jobs:
+  deploy-to-apps-script:
+    name: deploy to apps script
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install clasp
+        id: install-clasp
+        run: sudo npm install @google/clasp@2.4.1 -g
+      
+      - name: Initialize clasp credentials
+        id: clasp-credentials
+        run: echo "$clasp-credentials" >> ~/.clasprc.json
+        
+      - name: Save current .clasprc.json contents to CLASPRC_JSON_FILE environment variable
+        id: save-clasprc
+        run: |
+          echo ::add-mask::$(tr -d '\n\r' < ~/.clasprc.json)
+          echo "CLASPRC_JSON_FILE=$(tr -d '\n\r' < ~/.clasprc.json)" >> $GITHUB_ENV        
+      
+      - name: Save CLASPRC_JSON_FILE environment variable to CLASPRC_JSON repo secret
+        id: set-clasprc-secret
+        if: ${{ env.CLASPRC_JSON_FILE != env.CLASPRC_JSON_SECRET  }}
+        uses: hmanzur/actions-set-secret@v2.0.0
+        env:
+          CLASPRC_JSON_SECRET: ${{ secrets.CLASPRC_JSON }}
+        with:
+          name: "CLASPRC_JSON"
+          value: ${{ env.CLASPRC_JSON_FILE }}
+          repository: ${{ github.repository }}
+          token: ${{ secrets.REPO_ACCESS_TOKEN }}
+        
+      - name: Push script to scripts.google.com
+        id: clasp-push
+        run: clasp push -f
+      
